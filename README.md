@@ -20,6 +20,7 @@ Boards change **only when you change them**.
 | 5 | **Rivals** | Leaderboard against your friends: rating, last change, solves this week |
 | 6 | **Goals & quests** | Target-rating, daily and weekly rings, **3 daily quests** that earn coins, last 14 days chart |
 | 7 | **Hall of records** | Max rating, best rank, biggest gain/drop, hardest solve, fastest contest AC, longest streak, busiest day… |
+| 8 | **Stopwatch** | Time yourself on a problem: start/pause, laps, optional time limit (15–90 min), quick-pick from unfinished problems, auto-stops when you get AC and keeps a solve log with average and fastest times. Keys: Space = start/pause, L = lap, R = stop & save |
 | 🌙 | **Night mode** | Dims to a big clock between the times you choose (default 23:30–07:00). Tap to wake for 15 minutes. It never kicks in during a live contest. |
 
 ### 📻 CF FM radio (zero data)
@@ -101,6 +102,7 @@ js/fx.js              banners, particles, confetti, toasts, shake
 js/charts.js          canvas charts: rating, difficulty, heatmap, radar, rings
 js/boards.js          Overview, Practice, Achievements, Rivals, Goals, Records boards
 js/live.js            Live contest board
+js/stopwatch.js       Stopwatch board (state saved in localStorage)
 js/app.js             app controller: refresh scheduler, swiping, effects, settings, night mode
 sw.js                 offline support
 manifest.webmanifest  install as a full-screen app

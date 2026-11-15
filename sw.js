@@ -1,9 +1,9 @@
 /* Service worker: lets the dashboard open even when Wi-Fi is down.
    Network first (so updates show up right away), cache as a fallback.
    Codeforces API calls are not cached here; the app caches those itself. */
-const CACHE = 'cf-arcade-v2';
+const CACHE = 'cf-arcade-v3';
 const SHELL = ['./', 'index.html', 'css/style.css', 'js/util.js', 'js/api.js', 'js/stats.js', 'js/sound.js',
-  'js/fx.js', 'js/charts.js', 'js/boards.js', 'js/live.js', 'js/radio.js', 'js/app.js', 'manifest.webmanifest', 'icons/icon.svg'];
+  'js/fx.js', 'js/charts.js', 'js/boards.js', 'js/live.js', 'js/radio.js', 'js/stopwatch.js', 'js/app.js', 'manifest.webmanifest', 'icons/icon.svg'];
 
 self.addEventListener('install', e => {
   e.waitUntil(caches.open(CACHE).then(c => c.addAll(SHELL)).then(() => self.skipWaiting()));

@@ -9,6 +9,7 @@
     { id: 'rivals', title: 'RIVALS', icon: '☠' },
     { id: 'goals', title: 'GOALS & QUESTS', icon: '◎' },
     { id: 'records', title: 'HALL OF RECORDS', icon: '★' },
+    { id: 'stopwatch', title: 'STOPWATCH', icon: '⏱' },
   ];
 
   const st = {
@@ -43,6 +44,7 @@
     CF.radio.volume = st.settings.radio.volume;
     CF.radio.onchange = () => { renderRadio(); renderHud(); };
     buildShell();
+    renderBoard('stopwatch');
     $('#radio-panel').addEventListener('input', e => {
       if (e.target.id !== 'radio-vol') return;
       CF.radio.setVolume(Number(e.target.value) / 100);
@@ -91,6 +93,8 @@
     document.addEventListener('keydown', e => {
       if ($('#settings').classList.contains('open')) { if (e.key === 'Escape') closeSettings(); return; }
       if (e.key === 'Escape') toggleRadioPanel(false);
+      if (BOARDS[st.board].id === 'stopwatch' && CF.stopwatch.keydown(e)) return;
+      if (e.target.tagName === 'INPUT') return;
       if (e.key === 'ArrowRight') goTo(st.board + 1);
       if (e.key === 'ArrowLeft') goTo(st.board - 1);
     });
@@ -115,6 +119,7 @@
     if (!t) return;
     const a = t.dataset.action;
     CF.sound.click();
+    if (a.startsWith('sw-') && CF.stopwatch.handleAction(a, t)) return;
     if (a === 'goto') goTo(Number(t.dataset.i));
     else if (a === 'prev') goTo(st.board - 1);
     else if (a === 'next') goTo(st.board + 1);
@@ -331,6 +336,7 @@
     fresh.sort((a, b) => a.id - b.id).slice(-3).forEach(s => {
       const label = (ctx.live ? 'PROBLEM ' : (s.problem.contestId || '')) + s.problem.index + (ctx.live ? '' : ' · ' + s.problem.name);
       if (s.verdict === 'OK') {
+        CF.stopwatch.onAccepted(s);
         const firstSolve = !st.stats || !st.stats.solvedMap.has(CF.problemKey(s.problem));
         CF.fx.accepted(label, ctx.live ? CF.verdictLabel(s).toUpperCase() : firstSolve ? '+' + (s.problem.rating || 500) + ' XP' : 'ACCEPTED AGAIN');
         if (ctx.live) { combo++; if (combo >= 2) CF.fx.combo(combo); }
@@ -401,7 +407,7 @@
   /* ---------------- Rendering ---------------- */
   function renderBoard(id) {
     const el = document.getElementById('board-' + id);
-    if (!el || !st.stats) return;
+    if (!el || (!st.stats && id !== 'stopwatch')) return;
     const scroll = el.scrollTop;
     try { CF.boards[id](el, st); } catch (e) {
       console.error(id, e);
@@ -425,7 +431,7 @@
   }
   function showError(msg) {
     const nice = /not found/i.test(msg) ? 'HANDLE "' + st.handle + '" NOT FOUND' : msg.toUpperCase();
-    document.querySelectorAll('.board').forEach(b => {
+    document.querySelectorAll('.board:not(#board-stopwatch)').forEach(b => {
       b.innerHTML = '<div class="center pad"><div class="big danger">GAME OVER</div><p>' + CF.esc(nice) +
         '</p><button class="btn" data-action="settings">CHANGE HANDLE</button></div>';
     });
