@@ -239,7 +239,7 @@
           (f.dead ? '<div class="ko">K.O.!</div>' : '') + '</div>' +
         '<div class="boss-hp"><span class="small">HP</span>' + CF.boards.bar(f.left / b.hp, f.left / b.hp < 0.25 ? 'var(--wa)' : f.left / b.hp < 0.5 ? 'var(--warn)' : 'var(--ac)', 30) +
           '<b>' + CF.fmtNum(f.left) + ' / ' + CF.fmtNum(b.hp) + '</b></div>' +
-        '<div class="boss-btns">' + (f.dead ? '<span class="good">DEFEATED · +150 COINS</span>' :
+        '<div class="boss-btns">' + (f.dead ? '<span class="good">DEFEATED · +150 COINS</span> <button class="btn mini ghost" data-action="boss-replay">↻ REPLAY K.O.</button>' :
           '<a class="btn" href="' + CF.problemUrl(b.problem) + '" target="_blank" rel="noopener">⚔ FIGHT THE BOSS (INSTANT K.O.)</a>') + '</div>' +
       '</div>';
     const log = f.hits.length ? '<ul class="list">' + f.hits.map(h =>
@@ -254,6 +254,69 @@
       P('☠ WEEKLY BOSS', arena, 'boss-a') +
       P('⚡ STATUS', info, 'boss-c') +
       P('⚔ DAMAGE LOG', log, 'boss-b') + '</div>';
+  };
+
+  /* Replays this week's fight on the arena: the boss comes back, every hit lands in order, then the K.O. */
+  B.replay = function (arena) {
+    const st = CF.state, b = B.state(st);
+    if (!arena || !b || arena.classList.contains('replay')) return;
+    const f = B.fight(st, b);
+    if (!f.dead) return;
+    const color = CF.rankFor(b.problem.rating).color;
+    const seed = b.week + b.problem.contestId + b.problem.index;
+    const body = arena.querySelector('.boss-body'), hp = arena.querySelector('.boss-hp');
+    const hpColor = r => r < 0.25 ? 'var(--wa)' : r < 0.5 ? 'var(--warn)' : 'var(--ac)';
+    const setHp = left => {
+      hp.innerHTML = '<span class="small">HP</span>' + CF.boards.bar(left / b.hp, hpColor(left / b.hp), 30) +
+        '<b>' + CF.fmtNum(left) + ' / ' + CF.fmtNum(b.hp) + '</b>';
+    };
+    // Oldest hit first, only up to the killing blow; long logs are squeezed into at most 8 hits.
+    let hits = f.hits.slice().reverse(), sum = 0;
+    hits = hits.filter(h => { if (sum >= b.hp) return false; sum += h.dmg; return true; });
+    const per = Math.ceil(hits.length / 8), steps = [];
+    for (let i = 0; i < hits.length; i += per) {
+      const g = hits.slice(i, i + per);
+      steps.push({ dmg: g.reduce((a, h) => a + h.dmg, 0), crit: g.some(h => h.crit) });
+    }
+    const alive = () => arena.isConnected;
+    arena.classList.remove('dead', 'hit', 'ko-in');
+    arena.classList.add('replay');
+    body.innerHTML = bossSprite(seed, color, false);
+    let left = b.hp;
+    setHp(left);
+    let t = 700;
+    steps.forEach(s => {
+      setTimeout(() => {
+        if (!alive()) return;
+        left = Math.max(0, left - s.dmg);
+        setHp(left);
+        arena.classList.remove('hit'); void arena.offsetWidth; arena.classList.add('hit');
+        const pop = document.createElement('div');
+        pop.className = 'boss-pop' + (s.crit ? ' crit' : '');
+        pop.textContent = '-' + CF.fmtNum(s.dmg);
+        pop.style.left = (30 + Math.random() * 40) + '%';
+        body.appendChild(pop);
+        setTimeout(() => pop.remove(), 900);
+        (s.crit ? CF.sound.wa : CF.sound.ce)();
+      }, t);
+      t += s.crit ? 900 : 650;
+    });
+    setTimeout(() => {
+      if (!alive()) return;
+      arena.classList.remove('hit');
+      arena.classList.add('dying');
+      CF.sound.ratingDown();
+    }, t += 300);
+    setTimeout(() => {
+      if (!alive()) return;
+      body.innerHTML = bossSprite(seed, color, true) + '<div class="ko">K.O.!</div>';
+      arena.classList.remove('dying', 'replay');
+      arena.classList.add('dead', 'ko-in');
+    }, t += 1100);
+    setTimeout(() => {
+      if (!alive()) return;
+      CF.fx.banner({ kind: 'level', title: 'BOSS DEFEATED!', top: b.problem.name, sub: '+150 COINS', sound: CF.sound.rankUp });
+    }, t += 900);
   };
 
   /* ---------------- Year in review ---------------- */
@@ -400,6 +463,7 @@
     else if (a === 'cal-next') { X.calOffset++; rerender('calendar'); }
     else if (a === 'year') { X.year = Number(t.dataset.y); rerender('year'); }
     else if (a === 'card-close') X.closeCard();
+    else if (a === 'boss-replay') B.replay(t.closest('.boss-arena'));
     else if (a === 'warm-time') {
       X.closeCard();
       CF.stopwatch.setProblem(t.dataset.p, true);

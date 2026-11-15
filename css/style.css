@@ -487,6 +487,16 @@ button.chip { background: var(--panel2); color: var(--text); }
 .boss-arena.dead .boss-svg { animation: none; transform: rotate(8deg); }
 .ko { position: absolute; inset: 0; display: flex; align-items: center; justify-content: center; font-family: var(--pix);
   font-size: clamp(30px, 6vw, 64px); color: var(--wa); text-shadow: 4px 4px 0 #000; transform: rotate(-12deg); }
+.boss-arena.replay .boss-btns { visibility: hidden; }
+.boss-arena.dying .boss-svg { animation: bossdie 1.1s steps(11) forwards; }
+.boss-arena.ko-in .ko { animation: kopop .5s steps(5); }
+.boss-pop { position: absolute; top: 20%; font-family: var(--pix); font-size: clamp(14px, 2.4vw, 26px); color: #fff;
+  text-shadow: 3px 3px 0 #000; pointer-events: none; transform: translateX(-50%); animation: bosspop .9s steps(6) forwards; }
+.boss-pop.crit { color: var(--wa); font-size: clamp(20px, 3.6vw, 40px); }
+@keyframes bosspop { to { top: -5%; opacity: 0; } }
+@keyframes bossdie { 0%, 40% { filter: brightness(3) drop-shadow(6px 6px 0 #000); } 20%, 60% { filter: brightness(1) drop-shadow(6px 6px 0 #000); }
+  100% { transform: rotate(8deg) translateY(6px); filter: grayscale(1) brightness(.6) drop-shadow(6px 6px 0 #000); } }
+@keyframes kopop { 0% { transform: rotate(-12deg) scale(3); opacity: 0; } 100% { transform: rotate(-12deg) scale(1); opacity: 1; } }
 @keyframes bob { 50% { transform: translateY(-6px); } }
 @keyframes bosshit { 33% { transform: translateX(-10px); filter: brightness(2.5); } 66% { transform: translateX(10px); } }
 .boss-hp { display: flex; align-items: center; gap: 10px; width: min(520px, 100%); font-family: var(--pix); }
