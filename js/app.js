@@ -55,6 +55,7 @@
     $('#start-screen').addEventListener('click', start, { once: true });
     setInterval(tick, 1000);
     setInterval(scheduler, 2000);
+    fastLoop();
     addEventListener('resize', debounce(() => { if (st.stats) renderAll(); }, 250));
     document.addEventListener('visibilitychange', () => { if (!document.hidden) { requestWakeLock(); due.quick = 0; } });
     if ('serviceWorker' in navigator && location.protocol.startsWith('http')) navigator.serviceWorker.register('sw.js').catch(() => {});
@@ -276,9 +277,13 @@
     try {
       if (t >= due.full) { due.full = t + st.settings.refreshMin * 60000; due.quick = t + 60000; due.detect = t + 60000; await fullRefresh(); }
       if (t >= due.quick) {
-        const running = st.contestsAll.some(c => c.phase === 'CODING');
-        due.quick = t + (running ? 20000 : 60000);
+        // Faster while a contest is running or one of your submissions is still being judged.
+        const now = t / 1000;
+        const running = st.contestsAll.some(c => c.phase === 'CODING' ||
+          (c.startTimeSeconds <= now && c.startTimeSeconds + c.durationSeconds > now));
+        due.quick = t + (running ? 8000 : 60000);
         await quickCheck();
+        if (st.subs && st.subs.slice(0, 5).some(x => !x.verdict || x.verdict === 'TESTING')) due.quick = Date.now() + 3000;
       }
       if (t >= due.detect) { due.detect = t + 60000; await detectLive(); }
       if (t >= due.live) {
@@ -290,6 +295,24 @@
     } finally { CF.scheduling = false; }
   }
 
+  /* Verdict loop for live contests. Runs on its own so the big
+     5-minute refresh or a standings download can never delay a verdict. */
+  let fastTimer = null;
+  function kickFast() { clearTimeout(fastTimer); fastLoop(); }   // check right now
+  async function fastLoop() {
+    clearTimeout(fastTimer);
+    let delay = CF.live.fastDelay();
+    try {
+      if (delay && st.ready && !document.hidden) {
+        const changed = await CF.live.pollVerdicts(st);
+        if (changed) renderBoard('live');
+        delay = CF.live.fastDelay();
+      }
+    } finally {
+      fastTimer = setTimeout(fastLoop, delay || 3000);
+    }
+  }
+
   /* ---------------- Effects ---------------- */
   CF.app.noticeSubs = noticeSubs;
   function noticeSubs(subs, ctx) {
@@ -299,8 +322,10 @@
       known.set(s.id, s.verdict);
       if (!st.ready) continue;
       if (CF.isFinalVerdict(s.verdict) && (prev === undefined || !CF.isFinalVerdict(prev))) fresh.push(s);
-      else if (prev === undefined && !CF.isFinalVerdict(s.verdict))
+      else if (prev === undefined && !CF.isFinalVerdict(s.verdict) && !ctx.fromFast) {
+        if (ctx.live || CF.live.mode === 'live') setTimeout(kickFast, 0);
         CF.fx.toast('<span class="toast-icon">⌛</span><div><b>SUBMITTED ' + CF.esc(s.problem.index) + '</b><br>Testing...</div>');
+      }
     }
     // After being offline, only celebrate the newest few.
     fresh.sort((a, b) => a.id - b.id).slice(-3).forEach(s => {
@@ -617,7 +642,7 @@
     CF.saveSettings(s);
     // Reset everything for the new player.
     Object.assign(st, { handle, profile: CF.loadProfile(handle), info: null, subs: null, history: null, stats: null, rivals: [], ready: false, lastUpdate: 0 });
-    Object.assign(CF.live, { contest: null, mode: 'none', problems: [], myRow: null, mySubs: [], ratingChange: null, standings: null, lastLoad: 0, lastProbe: 0 });
+    Object.assign(CF.live, { contest: null, mode: 'none', problems: [], myRow: null, mySubs: [], ratingChange: null, standings: null, lastLoad: 0, lastProbe: 0, verdictsLoadedFor: null });
     known.clear(); combo = 0;
     if (history.replaceState) history.replaceState(null, '', location.pathname + '?handle=' + encodeURIComponent(handle));
     document.querySelectorAll('.board').forEach(b => { b.innerHTML = '<div class="center pad blink">LOADING ' + CF.esc(handle) + '...</div>'; });

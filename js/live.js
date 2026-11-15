@@ -54,7 +54,7 @@
     if (!pick) { L.contest = null; return changed; }
     if (changed) {
       L.contest = pick; L.problems = []; L.myRow = null; L.mySubs = []; L.ratingChange = null;
-      L.rows = null; L.summary = null; L.rowAt = 0; L.lastLoad = 0;
+      L.rows = null; L.summary = null; L.rowAt = 0; L.lastLoad = 0; L.verdictsLoadedFor = null;
       // Small summary saved from an earlier download, so we don't re-download megabytes.
       const cached = CF.store.get('standings.' + pick.id, null);
       if (cached) {
@@ -69,11 +69,54 @@
     return changed;
   };
 
-  /* Interval the app should use for polling this board. */
+  /* Slow loop (standings etc.): seconds between refreshes. */
   L.pollSeconds = function () {
-    if (L.mode === 'live') return 20;
+    if (L.mode === 'live') return 30;
     if (L.contest && L.contest.phase && !FINISHED_PHASES.includes(L.contest.phase)) return 60;
     return 600;
+  };
+
+  const isTesting = s => !s.verdict || s.verdict === 'TESTING';
+  L.systemTesting = () => !!(L.contest && (L.contest.phase === 'PENDING_SYSTEM_TEST' || L.contest.phase === 'SYSTEM_TEST'));
+
+  /* Fast loop: milliseconds until the next verdict check, or null when there's nothing to watch.
+     2.5s while a submission is being judged, 6s otherwise during a live contest. */
+  L.fastDelay = function () {
+    if (L.mode === 'live') return L.mySubs.some(isTesting) ? 2500 : 6000;
+    if (L.systemTesting()) return 10000;
+    return null;
+  };
+
+  /* Fetch only your newest submissions in this contest and merge them in.
+     Returns true when anything changed. */
+  L.pollVerdicts = async function (st) {
+    if (!L.contest || L.verdictLoading) return false;
+    const id = L.contest.id, live = L.mode === 'live';
+    L.verdictLoading = true;
+    try {
+      // First time: all your submissions. After that: just the newest 20 (small and fast).
+      const count = L.verdictsLoadedFor === id ? 20 : 200;
+      const subs = await CF.api.call('contest.status', { contestId: id, handle: st.handle, from: 1, count }, { priority: true });
+      if (!L.contest || L.contest.id !== id) return false;
+      const byId = new Map(L.mySubs.map(s => [s.id, s]));
+      let changed = L.verdictsLoadedFor !== id;
+      for (const s of subs.filter(isContestant)) {
+        const old = byId.get(s.id);
+        if (!old || old.verdict !== s.verdict || old.passedTestCount !== s.passedTestCount) { byId.set(s.id, s); changed = true; }
+      }
+      L.verdictsLoadedFor = id;
+      if (changed) {
+        L.mySubs = [...byId.values()].sort((a, b) => b.id - a.id);
+        if (CF.app) CF.app.noticeSubs(L.mySubs, { live, contestId: id, fromFast: true });
+      }
+      L.verdictAt = now();
+      return changed;
+    } catch (e) {
+      console.warn('verdict poll failed', e);
+      return false;
+    } finally {
+      L.verdictLoading = false;
+    }
   };
 
   L.refresh = async function (st, force) {
@@ -82,10 +125,8 @@
     L.loading = true;
     const id = L.contest.id, live = L.mode === 'live';
     try {
-      const subs = await CF.api.call('contest.status', { contestId: id, handle: st.handle, from: 1, count: 200 }, { priority: live });
+      if (L.verdictsLoadedFor !== id || !L.fastDelay()) await L.pollVerdicts(st);
       if (!L.contest || L.contest.id !== id) return;
-      L.mySubs = subs.filter(isContestant);
-      if (CF.app) CF.app.noticeSubs(L.mySubs, { live, contestId: id });
 
       // Codeforces only serves the FULL standings (several MB), so download them
       // rarely: once per contest, or every 2 minutes while you watch a live contest.
@@ -153,7 +194,7 @@
     const subs = L.mySubs.filter(s => s.problem.index === p.index).sort((a, b) => b.id - a.id);
     const latest = subs[0];
     const ac = subs.find(s => s.verdict === 'OK');
-    if (latest && (!latest.verdict || latest.verdict === 'TESTING')) return { cls: 'testing', icon: '⌛', line: 'TESTING...', subs };
+    if (latest && (!latest.verdict || latest.verdict === 'TESTING')) return { cls: 'testing', icon: '⌛', line: 'TESTING...', sub: latest.passedTestCount ? 'PASSED ' + latest.passedTestCount + ' TESTS' : '', subs };
     if ((res && res.points > 0) || ac) {
       const t = res && res.bestSubmissionTimeSeconds != null ? res.bestSubmissionTimeSeconds : ac ? ac.relativeTimeSeconds : null;
       const pre = ac && ac.testset === 'PRETESTS' && L.contest.phase !== 'FINISHED';

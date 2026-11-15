@@ -34,34 +34,42 @@
     }
   }
 
+  /* Requests START at least GAP_MS apart (Codeforces' limit), but don't wait
+     for each other to finish, so a big standings download can't hold up a
+     quick verdict check. */
   async function pump() {
     if (running) return;
     running = true;
     while (queue.length) {
-      const job = queue.shift();
       const wait = lastCall + GAP_MS - Date.now();
-      if (wait > 0) await new Promise(r => setTimeout(r, wait));
+      if (wait > 0) { await new Promise(r => setTimeout(r, wait)); continue; }
+      const job = queue.shift();
       lastCall = Date.now();
-      try {
-        const result = await doFetch(job.method, job.params);
-        CF.api.online = true;
-        CF.api.lastError = null;
-        if (job.cache) CF.store.set(cacheKey(job.method, job.params), { t: Date.now(), r: result });
-        job.resolve(result);
-      } catch (e) {
-        const limited = /limit exceeded/i.test(e.message);
-        if (limited && job.tries < 3) {
-          job.tries++;
-          lastCall = Date.now() + 2000;
-          queue.unshift(job);
-          continue;
-        }
-        if (!e.cf) CF.api.online = false;
-        CF.api.lastError = e.message;
-        job.reject(e);
-      }
+      run(job);
     }
     running = false;
+  }
+
+  async function run(job) {
+    try {
+      const result = await doFetch(job.method, job.params);
+      CF.api.online = true;
+      CF.api.lastError = null;
+      if (job.cache) CF.store.set(cacheKey(job.method, job.params), { t: Date.now(), r: result });
+      job.resolve(result);
+    } catch (e) {
+      const limited = /limit exceeded/i.test(e.message);
+      if (limited && job.tries < 3) {
+        job.tries++;
+        lastCall = Date.now() + 2000;
+        queue.unshift(job);
+        pump();
+        return;
+      }
+      if (!e.cf) CF.api.online = false;
+      CF.api.lastError = e.message;
+      job.reject(e);
+    }
   }
 
   /* call(method, params, {cache, priority}) -> Promise<result> */

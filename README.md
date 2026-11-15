@@ -49,11 +49,15 @@ Codeforces allows about 1 API call every 2 seconds, so every call goes through o
 
 | What | How often |
 |------|-----------|
+| **Your verdicts in a live contest** | **every 2.5 s while a submission is being judged**, every 6 s otherwise. A new submission triggers an instant check. |
+| Your latest 15 submissions (practice verdicts, detecting that you joined a contest) | every 8 s while a contest is running, 3 s while something is testing, otherwise every 60 s |
+| System testing after a contest | every 10 s |
+| Full contest standings (rank, points) | only while the Live board is open: every 2 min live, once otherwise |
 | Full profile (info, all submissions, rating history, contest list) | every 5 min (setting) |
-| Your latest 15 submissions (new verdicts) | every 60 s, every 20 s while any contest is running |
-| Your submissions in a live contest | every 20 s |
-| Full contest standings | only while the Live board is open: every 2 min live, once otherwise |
 | Rivals | every 10 min |
+
+The verdict checker runs in its own loop, and requests are only spaced apart at the start (Codeforces' limit is
+about 1 call every 2 s), so a big standings download or the 5-minute refresh never delays a verdict.
 
 > Codeforces now serves contest standings **only in full** (a Div. 2 can be 5–20 MB), so the
 > standings download only when you're looking at the Live board. Your own verdicts don't need it
