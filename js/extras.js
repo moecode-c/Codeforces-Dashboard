@@ -153,27 +153,52 @@
     const b = CF.store.get('boss.' + st.handle.toLowerCase(), null);
     return b && b.week === CF.dayKey(weekStart()) ? b : null;
   };
-  /* Pick this week's boss once (about 300 above your rating). Needs the problemset. */
+  /* Difficulty: how far above your rating the boss is, how much HP it has, and what it pays. */
+  B.DIFFS = {
+    easy:   { name: 'EASY',   above: 0,   min: 2, pace: 0.8, reward: 75 },
+    normal: { name: 'NORMAL', above: 300, min: 3, pace: 1.3, reward: 150 },
+    hard:   { name: 'HARD',   above: 500, min: 4, pace: 1.7, reward: 250 },
+    insane: { name: 'INSANE', above: 800, min: 5, pace: 2.2, reward: 400 },
+  };
+  B.diff = () => B.DIFFS[CF.state.settings.bossDiff] ? CF.state.settings.bossDiff : 'normal';
+  const bossId = b => b.id || b.week;
+  const reward = b => b.reward || 150;
+  /* Pick this week's boss once, at the chosen difficulty. Needs the problemset. */
   B.ensure = async function (st) {
     if (!st.stats || B.state(st)) return B.state(st);
-    await PS.load();
-    const week = CF.dayKey(weekStart());
-    const target = clamp(round100((st.stats.rating || 1000) + 300), 1000, 3500);
-    let pick = PS.pick(st, target, target, 1, 'boss:' + st.handle.toLowerCase() + ':' + week)[0] ||
-      PS.pick(st, target - 200, target + 200, 1, 'boss2:' + week)[0];
-    if (!pick) return null;
-    // HP follows your own pace: a bit more than your average week (last 4 weeks), at least 3x the boss rating.
-    const ws = weekStart() / 1000, xp = x => x.problem.rating || 500;
-    const avg = st.stats.solvedList.filter(x => x.time >= ws - 28 * 86400 && x.time < ws).reduce((a, x) => a + xp(x), 0) / 4;
-    let hp = Math.max(target * 3, avg * 1.3);
-    // Your very first boss may appear mid-week: then only later solves count and HP shrinks to the days left.
-    // After that, every boss counts the whole week from Monday.
-    const first = !CF.store.get('boss.' + st.handle.toLowerCase(), null);
-    const from = first ? Math.floor(now()) : Math.floor(ws);
-    hp = round100(hp * Math.max(0.25, (ws + 7 * 86400 - from) / (7 * 86400)));
-    const b = { week, from, problem: { contestId: pick.contestId, index: pick.index, name: pick.name, rating: pick.rating }, hp };
-    CF.store.set('boss.' + st.handle.toLowerCase(), b);
-    return b;
+    return B.spawn(st, false);
+  };
+  /* Spawns a boss. respawn = true replaces the current one: only solves from now on count,
+     and HP shrinks to the days left in the week. */
+  let spawning = null;
+  B.spawn = function (st, respawn) {
+    if (spawning) return spawning;
+    spawning = (async () => {
+      await PS.load();
+      const h = st.handle.toLowerCase(), week = CF.dayKey(weekStart());
+      const old = B.state(st), dk = B.diff(), d = B.DIFFS[dk];
+      const n = respawn && old ? (old.n || 0) + 1 : 0;
+      const skip = new Set(respawn && old ? (old.past || []).concat(CF.problemKey(old.problem)) : []);
+      const target = clamp(round100((st.stats.rating || 1000) + d.above), 800, 3500);
+      const seed = 'boss:' + h + ':' + week + (n || dk !== 'normal' ? ':' + n + ':' + dk : '');
+      const pick = PS.pick(st, target, target, 1, seed, skip)[0] ||
+        PS.pick(st, target - 200, target + 200, 1, seed + ':2', skip)[0];
+      if (!pick) return null;
+      // HP follows your own pace: your average week (last 4 weeks) times the difficulty, with a floor of a few times the boss rating.
+      const ws = weekStart() / 1000, xp = x => x.problem.rating || 500;
+      const avg = st.stats.solvedList.filter(x => x.time >= ws - 28 * 86400 && x.time < ws).reduce((a, x) => a + xp(x), 0) / 4;
+      let hp = Math.max(target * d.min, avg * d.pace);
+      // A respawned boss, or your very first one, may appear mid-week: then only later solves count and HP shrinks
+      // to the days left. Otherwise the boss counts the whole week from Monday.
+      const first = !CF.store.get('boss.' + h, null);
+      const from = first || respawn ? Math.floor(now()) : Math.floor(ws);
+      hp = round100(hp * Math.max(0.25, (ws + 7 * 86400 - from) / (7 * 86400)));
+      const b = { week, id: week + (n ? '#' + n : ''), n, past: [...skip], diff: dk, reward: d.reward, from,
+        problem: { contestId: pick.contestId, index: pick.index, name: pick.name, rating: pick.rating }, hp };
+      CF.store.set('boss.' + h, b);
+      return b;
+    })().finally(() => { spawning = null; });
+    return spawning;
   };
   /* Your new solves this week, as hits. Solving the boss itself is a critical hit. */
   B.fight = function (st, b) {
@@ -192,11 +217,11 @@
     const f = B.fight(st, b);
     const p = st.profile;
     p.bossWins = p.bossWins || [];
-    if (f.dead && !p.bossWins.includes(b.week)) {
-      p.bossWins.push(b.week);
-      p.coins += 150;
+    if (f.dead && !p.bossWins.includes(bossId(b))) {
+      p.bossWins.push(bossId(b));
+      p.coins += reward(b);
       CF.saveProfile(st.handle, p);
-      if (!silent) setTimeout(() => CF.fx.banner({ kind: 'level', title: 'BOSS DEFEATED!', top: b.problem.name, sub: '+150 COINS', sound: CF.sound.rankUp }), 3500);
+      if (!silent) setTimeout(() => CF.fx.banner({ kind: 'level', title: 'BOSS DEFEATED!', top: b.problem.name, sub: '+' + reward(b) + ' COINS', sound: CF.sound.rankUp }), 3500);
     }
   };
   function bossSprite(seed, color, dead) {
@@ -215,7 +240,7 @@
     return '<svg class="boss-svg" viewBox="-1 -1 11 11" shape-rendering="crispEdges"><g fill="' + (dead ? '#555' : color) + '">' +
       '<rect x="1" y="1" width="7" height="6"/>' + rects + '</g>' + eyes + '</svg>';
   }
-  let lastHp = null;
+  let lastHp = null, lastId = null;
   CF.boards.boss = function (el, st) {
     const b = B.state(st);
     if (!b) {
@@ -227,19 +252,20 @@
     }
     const f = B.fight(st, b);
     const color = CF.rankFor(b.problem.rating).color;
-    const hit = lastHp != null && f.left < lastHp;
-    lastHp = f.left;
+    const hit = lastHp != null && lastId === bossId(b) && f.left < lastHp;
+    lastHp = f.left; lastId = bossId(b);
+    const dk = B.diff(), bd = B.DIFFS[b.diff] || B.DIFFS.normal;
     const end = Math.floor(weekStart() / 1000) + 7 * 86400;
     const wins = (st.profile.bossWins || []).length;
     const arena =
       '<div class="boss-arena' + (f.dead ? ' dead' : '') + (hit ? ' hit' : '') + '">' +
         '<div class="boss-name" style="color:' + color + '">' + esc(b.problem.name.toUpperCase()) + '</div>' +
-        '<div class="small dim">LV ' + b.problem.rating + ' BOSS · ' + esc(b.problem.contestId + b.problem.index) + '</div>' +
+        '<div class="small dim">LV ' + b.problem.rating + ' ' + bd.name + ' BOSS · ' + esc(b.problem.contestId + b.problem.index) + '</div>' +
         '<div class="boss-body">' + bossSprite(b.week + b.problem.contestId + b.problem.index, color, f.dead) +
           (f.dead ? '<div class="ko">K.O.!</div>' : '') + '</div>' +
         '<div class="boss-hp"><span class="small">HP</span>' + CF.boards.bar(f.left / b.hp, f.left / b.hp < 0.25 ? 'var(--wa)' : f.left / b.hp < 0.5 ? 'var(--warn)' : 'var(--ac)', 30) +
           '<b>' + CF.fmtNum(f.left) + ' / ' + CF.fmtNum(b.hp) + '</b></div>' +
-        '<div class="boss-btns">' + (f.dead ? '<span class="good">DEFEATED · +150 COINS</span> <button class="btn mini ghost" data-action="boss-replay">↻ REPLAY K.O.</button>' :
+        '<div class="boss-btns">' + (f.dead ? '<span class="good">DEFEATED · +' + reward(b) + ' COINS</span> <button class="btn mini ghost" data-action="boss-replay">↻ REPLAY K.O.</button>' :
           '<a class="btn" href="' + CF.problemUrl(b.problem) + '" target="_blank" rel="noopener">⚔ FIGHT THE BOSS (INSTANT K.O.)</a>') + '</div>' +
       '</div>';
     const log = f.hits.length ? '<ul class="list">' + f.hits.map(h =>
@@ -249,7 +275,13 @@
     const info = '<div class="boss-info">' +
       '<div><span class="small dim">ESCAPES IN</span><b data-countdown-short="' + end + '"></b></div>' +
       '<div><span class="small dim">HITS</span><b>' + f.hits.length + '</b></div>' +
-      '<div><span class="small dim">BOSSES BEATEN</span><b class="warn">' + wins + '</b></div></div>';
+      '<div><span class="small dim">BOSSES BEATEN</span><b class="warn">' + wins + '</b></div></div>' +
+      '<div class="boss-diff"><span class="small dim">DIFFICULTY</span><div class="chips">' +
+        Object.keys(B.DIFFS).map(k => '<button class="chip' + (k === dk ? ' on' : '') + '" data-action="boss-diff" data-d="' + k + '" title="+' +
+          B.DIFFS[k].above + ' above your rating · ' + B.DIFFS[k].reward + ' coins">' + B.DIFFS[k].name + '</button>').join('') + '</div>' +
+        '<button class="btn mini" data-action="boss-spawn">⟳ SPAWN NEW BOSS</button>' +
+        '<div class="small dim">+' + B.DIFFS[dk].above + ' ABOVE YOUR RATING · ' + B.DIFFS[dk].reward + ' COINS' +
+          (dk !== (b.diff || 'normal') && !f.dead ? ' · APPLIES TO THE NEXT BOSS' : '') + '</div></div>';
     el.innerHTML = '<div class="grid g-boss">' +
       P('☠ WEEKLY BOSS', arena, 'boss-a') +
       P('⚡ STATUS', info, 'boss-c') +
@@ -315,7 +347,7 @@
     }, t += 1100);
     setTimeout(() => {
       if (!alive()) return;
-      CF.fx.banner({ kind: 'level', title: 'BOSS DEFEATED!', top: b.problem.name, sub: '+150 COINS', sound: CF.sound.rankUp });
+      CF.fx.banner({ kind: 'level', title: 'BOSS DEFEATED!', top: b.problem.name, sub: '+' + reward(b) + ' COINS', sound: CF.sound.rankUp });
     }, t += 900);
   };
 
@@ -464,6 +496,18 @@
     else if (a === 'year') { X.year = Number(t.dataset.y); rerender('year'); }
     else if (a === 'card-close') X.closeCard();
     else if (a === 'boss-replay') B.replay(t.closest('.boss-arena'));
+    else if (a === 'boss-diff') {
+      st.settings.bossDiff = t.dataset.d; CF.saveSettings(st.settings); rerender('boss');
+    } else if (a === 'boss-spawn') {
+      const b = B.state(st);
+      if (b && !B.fight(st, b).dead && !confirm('Give up on ' + b.problem.name + ' and spawn a new ' + B.DIFFS[B.diff()].name + ' boss?')) return true;
+      t.disabled = true; t.textContent = 'SUMMONING...';
+      B.spawn(st, !!b).then(x => {
+        if (!x) CF.fx.toast('<span class="toast-icon">☠</span><div><b>NO BOSS FOUND</b><br>No unsolved problem at that rating.</div>');
+        else CF.sound.start();
+        rerender('boss'); rerender('overview');
+      }).catch(e => { CF.fx.toast('<span class="toast-icon">☠</span><div><b>COULD NOT SPAWN</b><br>' + esc(e.message) + '</div>'); rerender('boss'); });
+    }
     else if (a === 'warm-time') {
       X.closeCard();
       CF.stopwatch.setProblem(t.dataset.p, true);

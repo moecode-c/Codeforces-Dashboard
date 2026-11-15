@@ -6,12 +6,9 @@
     { id: 'live', title: 'LIVE CONTEST', icon: '⚔' },
     { id: 'calendar', title: 'CONTEST CALENDAR', icon: '▦' },
     { id: 'practice', title: 'PRACTICE', icon: '⚒' },
-    { id: 'achievements', title: 'ACHIEVEMENTS', icon: '♕' },
     { id: 'rivals', title: 'RIVALS', icon: '☠' },
     { id: 'goals', title: 'GOALS & QUESTS', icon: '◎' },
     { id: 'boss', title: 'WEEKLY BOSS', icon: '☠' },
-    { id: 'records', title: 'HALL OF RECORDS', icon: '★' },
-    { id: 'year', title: 'YEAR IN REVIEW', icon: '✦' },
     { id: 'stopwatch', title: 'STOPWATCH', icon: '⏱' },
   ];
 
@@ -39,7 +36,9 @@
     }
     st.handle = st.settings.handle || CF.DEFAULT_HANDLE;
     st.profile = CF.loadProfile(st.handle);
-    st.board = Math.min(BOARDS.length - 1, CF.store.get('board', 0));
+    // Remembered by name, so adding or removing boards doesn't move you to a different one.
+    const saved = CF.store.get('board', 0);
+    st.board = typeof saved === 'string' ? Math.max(0, BOARDS.findIndex(b => b.id === saved)) : Math.min(BOARDS.length - 1, saved);
     CF.sound.enabled = st.settings.sound;
     document.body.classList.toggle('crt', st.settings.crt);
 
@@ -133,8 +132,9 @@
     if (a === 'goto') goTo(Number(t.dataset.i));
     else if (a === 'prev') goTo(st.board - 1);
     else if (a === 'next') goTo(st.board + 1);
-    else if (a === 'settings') openSettings();
+    else if (a === 'settings') { openSettings(); setTab('form'); }
     else if (a === 'close-settings') closeSettings();
+    else if (a === 'set-tab') setTab(t.dataset.tab);
     else if (a === 'save-settings') saveSettingsForm();
     else if (a === 'sound') { st.settings.sound = CF.sound.enabled = !CF.sound.enabled; CF.saveSettings(st.settings); renderHud(); }
     else if (a === 'night') toggleNight(true);
@@ -168,7 +168,7 @@
   function goTo(i, instant) {
     i = (i + BOARDS.length) % BOARDS.length;
     st.board = i;
-    CF.store.set('board', i);
+    CF.store.set('board', BOARDS[i].id);
     const track = $('#track');
     track.style.transition = instant ? 'none' : '';
     track.style.transform = 'translateX(' + (-i * 100) + '%)';
@@ -438,6 +438,7 @@
 
   /* ---------------- Rendering ---------------- */
   function renderBoard(id) {
+    if (id === setTabId) return renderSetTab();   // a page shown as a settings tab
     const el = document.getElementById('board-' + id);
     if (!el || (!st.stats && id !== 'stopwatch')) return;
     const scroll = el.scrollTop;
@@ -459,6 +460,7 @@
   }
   function renderAll() {
     BOARDS.forEach(b => renderBoard(b.id));
+    renderSetTab();
     renderHud();
   }
   function showError(msg) {
@@ -611,7 +613,7 @@
   /* ---------------- Settings ---------------- */
   function openSettings() {
     const s = st.settings, g = st.profile.goal;
-    const f = $('#settings .modal-body');
+    const f = $('#settings .set-form');
     f.innerHTML =
       '<label>HANDLE<div class="row"><input id="f-handle" value="' + CF.esc(st.handle) + '" autocomplete="off" autocapitalize="off" spellcheck="false"></div></label>' +
       '<div class="chips">' + s.savedHandles.map(h =>
@@ -639,6 +641,27 @@
     $('#settings').classList.add('open');
   }
   function closeSettings() { $('#settings').classList.remove('open'); }
+  /* The settings window also holds the Achievements and Hall of Records pages, as tabs. */
+  let setTabId = 'form';
+  function setTab(id) {
+    setTabId = id;
+    const m = $('#settings');
+    m.querySelectorAll('[data-action="set-tab"]').forEach(b => b.classList.toggle('on', b.dataset.tab === id));
+    m.querySelectorAll('.set-pane').forEach(p => { p.hidden = p.dataset.pane !== id; });
+    m.querySelector('.modal-box').classList.toggle('wide', id !== 'form');
+    m.querySelector('.modal-foot').hidden = id !== 'form';
+    renderSetTab();
+    m.querySelector('.modal-body').scrollTop = 0;
+  }
+  function renderSetTab() {
+    if (setTabId === 'form' || !$('#settings').classList.contains('open')) return;
+    const el = $('#settings .set-pane[data-pane="' + setTabId + '"]');
+    if (!st.stats) { el.innerHTML = '<div class="center pad blink">LOADING...</div>'; return; }
+    try { CF.boards[setTabId](el, st); } catch (e) {
+      console.error(setTabId, e);
+      el.innerHTML = '<div class="center pad danger">PAGE CRASHED: ' + CF.esc(e.message) + '</div>';
+    }
+  }
 
   /* ---------------- Virtual contest dialog ---------------- */
   function openVirtual() {

@@ -175,6 +175,7 @@ CF.defaultSettings = {
   sound: true,
   crt: true,
   refreshMin: 5,
+  bossDiff: 'normal',
   night: { enabled: true, start: '23:30', end: '07:00' },
   radio: { on: false, station: 0, volume: 0.5, nightPause: true },
 };

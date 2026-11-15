@@ -15,7 +15,7 @@
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
   <link href="https://fonts.googleapis.com/css2?family=Press+Start+2P&family=VT323&display=swap" rel="stylesheet">
-  <link rel="stylesheet" href="css/style.css?v=9">
+  <link rel="stylesheet" href="css/style.css?v=12">
 </head>
 <body class="crt">
   <div id="start-screen">
@@ -44,8 +44,18 @@
 
   <div id="settings" class="modal">
     <div class="modal-box">
-      <div class="modal-head">⚙ SETTINGS<button class="icon-btn" data-action="close-settings" aria-label="Close">✕</button></div>
-      <div class="modal-body"></div>
+      <div class="modal-head"><span class="set-tabs">
+        <button class="chip on" data-action="set-tab" data-tab="form">⚙ SETTINGS</button>
+        <button class="chip" data-action="set-tab" data-tab="achievements">♕ ACHIEVEMENTS</button>
+        <button class="chip" data-action="set-tab" data-tab="records">★ HALL OF RECORDS</button>
+        <button class="chip" data-action="set-tab" data-tab="year">✦ YEAR IN REVIEW</button>
+      </span><button class="icon-btn" data-action="close-settings" aria-label="Close">✕</button></div>
+      <div class="modal-body">
+        <div class="set-pane set-form" data-pane="form"></div>
+        <div class="set-pane" data-pane="achievements" hidden></div>
+        <div class="set-pane" data-pane="records" hidden></div>
+        <div class="set-pane" data-pane="year" hidden></div>
+      </div>
       <div class="modal-foot">
         <button class="btn ghost" data-action="close-settings">CANCEL</button>
         <button class="btn" data-action="save-settings">SAVE</button>
@@ -77,17 +87,17 @@
   <div id="toasts"></div>
   <div class="scanlines"></div>
 
-  <script src="js/util.js?v=9"></script>
-  <script src="js/api.js?v=9"></script>
-  <script src="js/stats.js?v=9"></script>
-  <script src="js/sound.js?v=9"></script>
-  <script src="js/fx.js?v=9"></script>
-  <script src="js/charts.js?v=9"></script>
-  <script src="js/boards.js?v=9"></script>
-  <script src="js/live.js?v=9"></script>
-  <script src="js/radio.js?v=9"></script>
-  <script src="js/stopwatch.js?v=9"></script>
-  <script src="js/extras.js?v=9"></script>
-  <script src="js/app.js?v=9"></script>
+  <script src="js/util.js?v=12"></script>
+  <script src="js/api.js?v=12"></script>
+  <script src="js/stats.js?v=12"></script>
+  <script src="js/sound.js?v=12"></script>
+  <script src="js/fx.js?v=12"></script>
+  <script src="js/charts.js?v=12"></script>
+  <script src="js/boards.js?v=12"></script>
+  <script src="js/live.js?v=12"></script>
+  <script src="js/radio.js?v=12"></script>
+  <script src="js/stopwatch.js?v=12"></script>
+  <script src="js/extras.js?v=12"></script>
+  <script src="js/app.js?v=12"></script>
 </body>
 </html>
