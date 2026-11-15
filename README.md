@@ -14,19 +14,23 @@ Boards change **only when you change them**.
 | # | Board | What's on it |
 |---|-------|--------------|
 | 1 | **Overview** | Avatar, handle in rank colour, rating and max, progress to next rank, **level + XP**, solved / 7-day / streak 🔥 / contests, rating graph with rank bands, solved-by-difficulty, activity heatmap, **upcoming contests with a countdown**, days since last AC, last contest result |
-| 2 | **Live contest** | Auto-detects a contest you're in. Problem tiles (A, B, C…) turn green on AC, red on a miss, yellow while testing. Your submission feed. **Standings tab** with *Around me / Top 10 / Friends*. After the contest: system testing, then your rating change. When you're not in a contest it shows your last battle. |
-| 3 | **Practice** | Unfinished business (tried but never accepted), tag radar, recent submissions, strongest and weakest tags, verdict stats |
-| 4 | **Achievements** | 50+ badges in bronze, silver, gold and diamond (solves, streaks, hardest problem, rank, contests, first-try ACs, night owl…) |
-| 5 | **Rivals** | Leaderboard against your friends: rating, last change, solves this week |
-| 6 | **Goals & quests** | Target-rating, daily and weekly rings, **3 daily quests** that earn coins, last 14 days chart |
-| 7 | **Hall of records** | Max rating, best rank, biggest gain/drop, hardest solve, fastest contest AC, longest streak, busiest day… |
-| 8 | **Stopwatch** | Time yourself on a problem: start/pause, laps, optional time limit (15–90 min), quick-pick from unfinished problems, auto-stops when you get AC and keeps a solve log with average and fastest times. Keys: Space = start/pause, L = lap, R = stop & save |
+| 2 | **Live contest** | Auto-detects a contest you're in. Problem tiles (A, B, C…) turn green on AC, red on a miss, yellow while testing. Your submission feed. **Standings tab** with *Around me / Top 10 / Friends*. After the contest: system testing, then your rating change. When you're not in a contest it shows your last battle. **Virtual contests:** tap *+ VIRTUAL*, enter the contest ID (or link) you registered for on Codeforces, and the board runs it like a live contest: countdown, verdicts, your score by the contest's rules and a **ghost rank** against the official contestants at the same moment. It also starts by itself after your first virtual submission. **Rating predictor:** during a live contest (and "if rated" during a virtual) it estimates your rating change and performance from your current rank (≈, usually within ~10 points). |
+| 3 | **Calendar** | Month view of upcoming contests, coloured by division (Div. 2/3 stand out), plus your past contests with rating change. Tap a contest (or ☆) to **mark** it: marked contests get a **warm-up** card 30 minutes before the start with two easy unsolved problems (⏱ TIME IT starts the stopwatch). |
+| 4 | **Practice** | Unfinished business (tried but never accepted), tag radar, recent submissions, strongest and weakest tags, verdict stats |
+| 5 | **Achievements** | 50+ badges in bronze, silver, gold and diamond (solves, streaks, hardest problem, rank, contests, first-try ACs, night owl…) |
+| 6 | **Rivals** | Leaderboard against your friends: rating, last change, solves this week |
+| 7 | **Goals & quests** | Target-rating, daily and weekly rings, **3 daily quests** that earn coins, last 14 days chart |
+| 8 | **Weekly boss** | Each Monday a hard unsolved problem (~300 above your rating) becomes the boss. Its HP follows your usual weekly pace; every new solve hits it for its rating, and solving the boss itself is an instant K.O. Beat it for **+150 coins**. |
+| 9 | **Hall of records** | Max rating, best rank, biggest gain/drop, hardest solve, fastest contest AC, longest streak, busiest day… |
+| 10 | **Year in review** | Solves, XP, best month, favourite tag, biggest rating jump, hardest solve, contests, rating start → end, active days and a solves-per-month chart. Switch between years. |
+| 11 | **Stopwatch** | Time yourself on a problem: start/pause, laps, optional time limit (15–90 min), quick-pick from unfinished problems, auto-stops when you get AC and keeps a solve log with average and fastest times. Keys: Space = start/pause, L = lap, R = stop & save. **◉ FOCUS** (or F) shows only the problem and the clock, huge. |
 | 🌙 | **Night mode** | Dims to a big clock between the times you choose (default 23:30–07:00). Tap to wake for 15 minutes. It never kicks in during a live contest. |
+| ☀ | **Morning summary** | The first time the dashboard wakes up each day (after 05:00): yesterday's solves, your streak, today's contests, quests and the boss. |
 
 ### 📻 CF FM radio (zero data)
 Tap **FM** in the top bar. The music is **composed live on the tablet** with the Web Audio API.
 Nothing is streamed, so it uses **0 KB of data**.
-- **Stations:** LO-FI BEATS (with vinyl crackle), 8-BIT ARCADE (chiptune), NIGHT DRIVE (synthwave)
+- **Stations:** LO-FI BEATS (vinyl crackle), 8-BIT ARCADE (chiptune), NIGHT DRIVE (synthwave), JAZZ CAFE (walking bass, brushes), SUNSET BOSSA, DEEP SPACE (ambient, no drums), TURBO BREAKS (drum & bass), MUSIC BOX (calm bells)
 - **Endless tracks:** every track is a new key, tempo and chord progression (about 1.5–3 minutes), with made-up competitive-programming titles.
 - **Effects stay audible:** the music ducks under sound effects (AC jingle, MISS!, level up…).
 - **Remembers your choices:** your station, volume and on/off. It resumes on PRESS START and pauses during night mode (you can change that in settings).
@@ -103,6 +107,7 @@ js/charts.js          canvas charts: rating, difficulty, heatmap, radar, rings
 js/boards.js          Overview, Practice, Achievements, Rivals, Goals, Records boards
 js/live.js            Live contest board
 js/stopwatch.js       Stopwatch board (state saved in localStorage)
+js/extras.js          Calendar, Weekly boss, Year in review boards; warm-up and morning cards; problemset cache
 js/app.js             app controller: refresh scheduler, swiping, effects, settings, night mode
 sw.js                 offline support
 manifest.webmanifest  install as a full-screen app

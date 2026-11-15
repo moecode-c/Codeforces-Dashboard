@@ -4,11 +4,14 @@
   const BOARDS = [
     { id: 'overview', title: 'OVERVIEW', icon: '⌂' },
     { id: 'live', title: 'LIVE CONTEST', icon: '⚔' },
+    { id: 'calendar', title: 'CONTEST CALENDAR', icon: '▦' },
     { id: 'practice', title: 'PRACTICE', icon: '⚒' },
     { id: 'achievements', title: 'ACHIEVEMENTS', icon: '♕' },
     { id: 'rivals', title: 'RIVALS', icon: '☠' },
     { id: 'goals', title: 'GOALS & QUESTS', icon: '◎' },
+    { id: 'boss', title: 'WEEKLY BOSS', icon: '☠' },
     { id: 'records', title: 'HALL OF RECORDS', icon: '★' },
+    { id: 'year', title: 'YEAR IN REVIEW', icon: '✦' },
     { id: 'stopwatch', title: 'STOPWATCH', icon: '⏱' },
   ];
 
@@ -92,8 +95,14 @@
     document.addEventListener('click', onClick);
     document.addEventListener('keydown', e => {
       if ($('#settings').classList.contains('open')) { if (e.key === 'Escape') closeSettings(); return; }
+      if ($('#vmodal').classList.contains('open')) {
+        if (e.key === 'Escape') closeVirtual();
+        if (e.key === 'Enter') startVirtual();
+        return;
+      }
       if (e.key === 'Escape') toggleRadioPanel(false);
-      if (BOARDS[st.board].id === 'stopwatch' && CF.stopwatch.keydown(e)) return;
+      if ((BOARDS[st.board].id === 'stopwatch' || CF.stopwatch.focusOpen()) && CF.stopwatch.keydown(e)) return;
+      if (document.getElementById('card').classList.contains('open')) return;
       if (e.target.tagName === 'INPUT') return;
       if (e.key === 'ArrowRight') goTo(st.board + 1);
       if (e.key === 'ArrowLeft') goTo(st.board - 1);
@@ -120,6 +129,7 @@
     const a = t.dataset.action;
     CF.sound.click();
     if (a.startsWith('sw-') && CF.stopwatch.handleAction(a, t)) return;
+    if (CF.extras.handleAction(a, t)) return;
     if (a === 'goto') goTo(Number(t.dataset.i));
     else if (a === 'prev') goTo(st.board - 1);
     else if (a === 'next') goTo(st.board + 1);
@@ -142,6 +152,13 @@
     }
     else if (a === 'live-view') { CF.live.view = t.dataset.view; renderBoard('live'); }
     else if (a === 'goto-live') goTo(1);
+    else if (a === 'virtual-open') openVirtual();
+    else if (a === 'close-virtual') closeVirtual();
+    else if (a === 'virtual-pick') { $('#v-contest').value = t.dataset.id; }
+    else if (a === 'virtual-start') startVirtual();
+    else if (a === 'virtual-end') {
+      if (confirm('End this virtual contest now? Your result so far is kept.')) { CF.live.endVirtual(); detectLive(); }
+    }
     else if (a === 'radio') toggleRadioPanel();
     else if (a === 'radio-play') { CF.radio.toggle(); saveRadio(); }
     else if (a === 'radio-skip') CF.radio.skip();
@@ -201,6 +218,7 @@
       st.lastUpdate = Date.now();
       recompute(firstLoad && !st.ready);
       st.ready = true;
+      setTimeout(() => CF.extras.checkMorning(st), 2500);
     } catch (e) {
       st.error = e.message;
       if (!st.stats) showError(e.message);
@@ -225,12 +243,13 @@
         const old = byId.get(s.id);
         if (!old || old.verdict !== s.verdict) { byId.set(s.id, s); changed = true; }
       }
-      noticeSubs(recent, { live: CF.live.mode === 'live' });
+      noticeSubs(recent, { live: CF.live.inGame() });
       if (changed) {
         st.subs = [...byId.values()].sort((a, b) => b.creationTimeSeconds - a.creationTimeSeconds);
         recompute(false);
         const runningIds = new Set(st.contestsAll.filter(c => c.phase === 'CODING').map(c => c.id));
         if (CF.live.mode !== 'live' && recent.some(x => runningIds.has(x.contestId))) await detectLive();
+        else if (!CF.live.inGame() && recent.some(x => CF.live.isVirtual(x) && x.creationTimeSeconds > Date.now() / 1000 - 6 * 3600)) await detectLive();
       }
       st.lastUpdate = Date.now();
       renderHud();
@@ -238,14 +257,24 @@
   }
 
   async function detectLive() {
-    const wasLive = CF.live.mode === 'live';
+    const wasMode = CF.live.mode, wasContest = CF.live.contest;
     const changed = await CF.live.detect(st);
-    if (CF.live.mode === 'live' && !wasLive) {
+    if (CF.live.mode === 'live' && wasMode !== 'live') {
       CF.sound.levelUp();
       CF.fx.toast('<span class="toast-icon">⚔</span><div><b>CONTEST LIVE!</b><br>' + CF.esc(CF.live.contest.name) +
         '<br><button class="btn mini" data-action="goto-live">OPEN LIVE BOARD</button></div>', '#ff4d4d');
     }
-    document.querySelectorAll('.dot')[1].classList.toggle('alert', CF.live.mode === 'live');
+    if (CF.live.mode === 'virtual' && wasMode !== 'virtual') {
+      CF.sound.levelUp();
+      CF.fx.toast('<span class="toast-icon">⚔</span><div><b>VIRTUAL CONTEST STARTED</b><br>' + CF.esc(CF.live.contest.name) +
+        '<br><button class="btn mini" data-action="goto-live">OPEN LIVE BOARD</button></div>', '#ffd23f');
+    }
+    if (wasMode === 'virtual' && CF.live.mode !== 'virtual' && wasContest) {
+      CF.sound.achievement();
+      CF.fx.toast('<span class="toast-icon">⚑</span><div><b>VIRTUAL OVER</b><br>' + CF.esc(wasContest.name) +
+        '<br>See your ghost rank on the Live board.</div>', '#ffd23f');
+    }
+    document.querySelectorAll('.dot')[1].classList.toggle('alert', CF.live.inGame());
     if (changed || !CF.live.lastLoad) { await CF.live.refresh(st, true); }
     renderBoard('live');
   }
@@ -286,7 +315,7 @@
         const now = t / 1000;
         const running = st.contestsAll.some(c => c.phase === 'CODING' ||
           (c.startTimeSeconds <= now && c.startTimeSeconds + c.durationSeconds > now));
-        due.quick = t + (running ? 8000 : 60000);
+        due.quick = t + (running || CF.live.inGame() ? 8000 : 60000);
         await quickCheck();
         if (st.subs && st.subs.slice(0, 5).some(x => !x.verdict || x.verdict === 'TESTING')) due.quick = Date.now() + 3000;
       }
@@ -320,6 +349,8 @@
 
   /* ---------------- Effects ---------------- */
   CF.app.noticeSubs = noticeSubs;
+  CF.app.renderBoard = renderBoard;
+  CF.app.goToBoard = id => goTo(BOARDS.findIndex(b => b.id === id));
   function noticeSubs(subs, ctx) {
     const fresh = [];
     for (const s of subs) {
@@ -328,7 +359,7 @@
       if (!st.ready) continue;
       if (CF.isFinalVerdict(s.verdict) && (prev === undefined || !CF.isFinalVerdict(prev))) fresh.push(s);
       else if (prev === undefined && !CF.isFinalVerdict(s.verdict) && !ctx.fromFast) {
-        if (ctx.live || CF.live.mode === 'live') setTimeout(kickFast, 0);
+        if (ctx.live || CF.live.inGame()) setTimeout(kickFast, 0);
         CF.fx.toast('<span class="toast-icon">⌛</span><div><b>SUBMITTED ' + CF.esc(s.problem.index) + '</b><br>Testing...</div>');
       }
     }
@@ -353,6 +384,7 @@
     st.quests = CF.dailyQuests(st.handle, st.stats);
     applyTheme();
     checkProgress(prev, silent);
+    CF.extras.boss.check(st, silent);
     renderAll();
   }
 
@@ -483,7 +515,7 @@
         setTimeout(() => { due.full = 0; }, 30000);
       }
     }
-    if (Math.floor(t) % 30 === 0) checkNight();
+    if (Math.floor(t) % 30 === 0) { checkNight(); CF.extras.checkWarmup(st); CF.extras.checkMorning(st); }
   }
 
   /* ---------------- Night mode ---------------- */
@@ -607,6 +639,38 @@
     $('#settings').classList.add('open');
   }
   function closeSettings() { $('#settings').classList.remove('open'); }
+
+  /* ---------------- Virtual contest dialog ---------------- */
+  function openVirtual() {
+    const done = new Set((st.subs || []).map(s => s.contestId));
+    // A few recent finished contests you haven't touched, as quick picks.
+    const picks = (st.contestsAll || []).filter(c => c.phase === 'FINISHED' && !done.has(c.id))
+      .sort((a, b) => b.startTimeSeconds - a.startTimeSeconds).slice(0, 8);
+    $('#vmodal .modal-body').innerHTML =
+      '<p class="small dim">1. On Codeforces open the contest → <b>Virtual participation</b> → register and start.<br>' +
+      '2. Enter the same contest here and press START. The board then tracks your verdicts, time left and ghost rank.<br>' +
+      'Forgot? It also starts by itself after your first virtual submission.</p>' +
+      '<div class="row3"><label>CONTEST ID OR LINK<input id="v-contest" placeholder="e.g. 1900" autocomplete="off" inputmode="url"></label>' +
+      '<label>MINUTES ALREADY PLAYED<input id="v-mins" type="number" min="0" value="0"></label></div>' +
+      (picks.length ? '<div class="small dim">RECENT CONTESTS YOU HAVEN’T PLAYED</div><div class="chips">' + picks.map(c =>
+        '<span class="chip" data-action="virtual-pick" data-id="' + c.id + '">' + c.id + ' · ' + CF.esc(c.name.replace(/Codeforces Round/i, 'CF Round')) + '</span>').join('') + '</div>' : '') +
+      '<div id="v-err" class="danger small"></div>';
+    $('#vmodal').classList.add('open');
+    setTimeout(() => $('#v-contest').focus(), 50);
+  }
+  function closeVirtual() { $('#vmodal').classList.remove('open'); }
+  function startVirtual() {
+    const raw = $('#v-contest').value;
+    const m = raw.match(/contest\/(\d+)/) || raw.match(/(\d+)/);
+    const err = $('#v-err');
+    if (!m) { err.textContent = 'ENTER A CONTEST ID OR LINK'; return; }
+    const mins = Math.max(0, Number($('#v-mins').value) || 0);
+    const problem = CF.live.startVirtual(st, Number(m[1]), mins);
+    if (problem) { err.textContent = problem; return; }
+    closeVirtual();
+    goTo(BOARDS.findIndex(b => b.id === 'live'));
+    detectLive();
+  }
 
   async function saveSettingsForm() {
     const s = st.settings, g = st.profile.goal;

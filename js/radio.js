@@ -16,6 +16,16 @@
       progs: [[0, 5, 2, 6], [0, 3, 6, 2], [0, 6, 5, 4], [5, 6, 0, 0]], cutoff: 9000 },
     { id: 'synth', name: 'NIGHT DRIVE', bpm: [96, 108], scale: MINOR, penta: PENTA_MIN, sevenths: false, swing: 0,
       progs: [[0, 5, 2, 6], [0, 6, 5, 6], [5, 3, 0, 6], [0, 2, 5, 4]], cutoff: 5000 },
+    { id: 'jazz', name: 'JAZZ CAFE', bpm: [96, 116], scale: MAJOR, penta: PENTA_MAJ, sevenths: true, swing: 0.33,
+      progs: [[1, 4, 0, 0], [1, 4, 0, 5], [0, 5, 1, 4], [2, 5, 1, 4]], cutoff: 3800 },
+    { id: 'bossa', name: 'SUNSET BOSSA', bpm: [118, 132], scale: MAJOR, penta: PENTA_MAJ, sevenths: true, swing: 0,
+      progs: [[0, 1, 4, 0], [0, 3, 1, 4], [5, 1, 4, 0]], cutoff: 4200 },
+    { id: 'ambient', name: 'DEEP SPACE', bpm: [60, 70], scale: MAJOR, penta: PENTA_MAJ, sevenths: true, swing: 0,
+      progs: [[0, 3, 0, 4], [0, 5, 3, 4], [5, 3, 0, 4]], cutoff: 2200 },
+    { id: 'dnb', name: 'TURBO BREAKS', bpm: [168, 176], scale: MINOR, penta: PENTA_MIN, sevenths: false, swing: 0,
+      progs: [[0, 5, 3, 6], [0, 0, 5, 6], [0, 3, 5, 4]], cutoff: 7000 },
+    { id: 'zen', name: 'MUSIC BOX', bpm: [78, 90], scale: MAJOR, penta: PENTA_MAJ, sevenths: false, swing: 0,
+      progs: [[0, 4, 5, 3], [0, 3, 4, 0], [5, 3, 0, 4]], cutoff: 6000 },
   ];
 
   const WORDS_A = ['Midnight', 'Lazy', 'Recursive', 'Greedy', 'Infinite', 'Quiet', 'Binary', 'Rainy', 'Sleepy', 'Neon',
@@ -95,7 +105,7 @@
     };
     R.title = WORDS_A[Math.floor(rnd() * WORDS_A.length)] + ' ' + WORDS_B[Math.floor(rnd() * WORDS_B.length)];
     filter.frequency.setTargetAtTime(s.cutoff, ctx.currentTime, 0.5);
-    if (s.id === 'lofi') startHiss(); else stopHiss();
+    if (s.id === 'lofi' || s.id === 'jazz') startHiss(); else stopHiss();
     if (R.onchange) R.onchange();
   }
   function chordNotes(degree) {
@@ -140,6 +150,8 @@
       if (pos === 4 || pos === 12) noise(t, 0.12, 0.15, 'bandpass', 2500);
       if (pos % 2 === 0) noise(t, 0.03, 0.04, 'highpass', 8000);
       if (bar % 4 >= 1 && rnd() < track.density + 0.15) melody(t, six * (rnd() < 0.6 ? 2 : 1), 'square', 0.035, 74);
+    } else if (s.id !== 'synth') {
+      STYLES[s.id](t, pos, bar, chord, beat, six, swingT, rnd);
     } else {
       if (pos === 0) chord.forEach(m => {
         tone('sawtooth', m, t, beat * 4, 0.025, { attack: 0.4, release: 0.8, detune: -8, lp: 1600 });
@@ -152,6 +164,61 @@
       if (bar % 8 >= 4 && pos % 2 === 0 && rnd() < track.density) melody(t, beat * (rnd() < 0.5 ? 1 : 0.5), 'square', 0.03, 72, true);
     }
   }
+  /* The newer stations. Each gets one 16th-note step at a time. */
+  const STYLES = {
+    jazz(t, pos, bar, chord, beat, six, swingT, rnd) {
+      if (pos % 4 === 0) {                                   // walking bass, one note per beat
+        const b = pos / 4, walk = [chord[0], chord[1], chord[2], chord[1] + (rnd() < 0.5 ? 1 : -1)];
+        tone('triangle', walk[b] - 24, t, beat * 0.9, 0.2, { attack: 0.01, release: 0.15, lp: 900 });
+      }
+      if (pos % 4 === 0) noise(t, 0.25, 0.045, 'highpass', 6000);          // ride
+      if (pos === 7 || pos === 15) noise(swingT, 0.12, 0.04, 'highpass', 6500);
+      if (pos === 4 || pos === 12) noise(t, 0.2, 0.05, 'bandpass', 2500);  // brushes
+      if (pos === 0) kick(t, 0.18);
+      if ((pos === 3 || pos === 7 || pos === 10 || pos === 14) && rnd() < 0.35)
+        chord.forEach(m => tone('triangle', m + 12, swingT, six * 1.5, 0.03, { lp: 2200 }));
+      if (pos % 2 === 0 && rnd() < track.density) melody(swingT, beat * (rnd() < 0.5 ? 0.5 : 1), 'triangle', 0.06, 74, true);
+    },
+    bossa(t, pos, bar, chord, beat, six, swingT, rnd) {
+      if (pos === 0 || pos === 8) tone('sine', chord[0] - 24, t, beat * 1.4, 0.25, { release: 0.2 });
+      if (pos === 6 || pos === 14) tone('sine', chord[2] - 24, t, beat * 0.5, 0.2);
+      if ([0, 3, 6, 10, 12].includes(pos)) noise(t, 0.03, 0.12, 'bandpass', 3200);   // rim clave
+      noise(t, 0.04, pos % 4 === 2 ? 0.05 : 0.025, 'highpass', 8000);              // shaker
+      if ([0, 3, 6, 10, 13].includes(pos)) chord.forEach((m, k) => tone('triangle', m, t + k * 0.008, six * 1.6, 0.03, { lp: 2400 }));
+      if (bar % 2 === 1 && pos % 2 === 0 && rnd() < track.density) melody(t, beat * (rnd() < 0.5 ? 1 : 0.5), 'sine', 0.07, 76, true);
+    },
+    ambient(t, pos, bar, chord, beat, six, swingT, rnd) {
+      if (pos === 0 && bar % 2 === 0) chord.forEach((m, k) => {
+        tone('sine', m, t + k * 0.2, beat * 8, 0.05, { attack: 2.5, release: 3, detune: (rnd() - 0.5) * 10 });
+        tone('triangle', m + 12, t + k * 0.2, beat * 8, 0.015, { attack: 3, release: 3, lp: 1200 });
+      });
+      if (pos === 0 && bar % 4 === 0) tone('sine', chord[0] - 24, t, beat * 16, 0.12, { attack: 3, release: 4 });
+      if (pos % 4 === 0 && rnd() < 0.18) melody(t, beat * 2, 'sine', 0.05, 84, true);   // far-away bells
+    },
+    dnb(t, pos, bar, chord, beat, six, swingT, rnd) {
+      if (pos === 0 || pos === 10 || (pos === 2 && rnd() < 0.3)) kick(t, 0.6, 0.18);
+      if (pos === 4 || pos === 12) { noise(t, 0.14, 0.22, 'bandpass', 1900); tone('triangle', 55, t, 0.05, 0.05); }
+      if ((pos === 7 || pos === 15) && rnd() < 0.4) noise(t, 0.05, 0.07, 'bandpass', 2200);
+      noise(t, 0.025, pos % 2 ? 0.025 : 0.045, 'highpass', 9000);
+      if (pos === 0 || pos === 8) {                         // detuned "reese" bass
+        tone('sawtooth', chord[0] - 24, t, beat * 1.9, 0.05, { detune: -12, lp: 500, release: 0.1 });
+        tone('sawtooth', chord[0] - 24, t, beat * 1.9, 0.05, { detune: 12, lp: 500, release: 0.1 });
+      }
+      if (pos === 0 && bar % 2 === 0) chord.forEach(m => tone('square', m + 12, t, beat * 0.5, 0.015, { lp: 2500, echo: true }));
+      if (bar % 8 >= 4 && pos % 2 === 0 && rnd() < track.density) melody(t, six * 2, 'square', 0.025, 76, true);
+    },
+    zen(t, pos, bar, chord, beat, six, swingT, rnd) {
+      const bell = (m, at, v) => {
+        tone('sine', m, at, beat * 2, v, { attack: 0.002, release: beat * 1.8 });
+        tone('sine', m + 19, at, beat * 0.6, v * 0.25, { attack: 0.002, release: beat * 0.5 });
+      };
+      if (pos % 2 === 0) bell(chord[(pos / 2) % chord.length] + 12 + (pos >= 8 ? 12 : 0), t, 0.045);
+      if (pos === 0) tone('sine', chord[0] - 12, t, beat * 4, 0.08, { attack: 0.05, release: 1 });
+      if (pos % 4 === 2 && rnd() < track.density) melody(t, beat, 'sine', 0.05, 84, true);
+      if (pos % 4 === 0) noise(t, 0.03, 0.015, 'highpass', 9000);
+    },
+  };
+
   function melody(t, dur, type, vol, base, echo) {
     const p = track.s.penta;
     track.melodyNote = Math.max(-3, Math.min(8, track.melodyNote + Math.floor(Math.random() * 5) - 2));

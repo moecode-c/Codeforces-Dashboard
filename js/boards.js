@@ -89,13 +89,13 @@
     const nextC = up[0];
     const contestsHtml = nextC ?
       '<div class="next-contest">' +
-        '<div class="small dim">NEXT BATTLE</div>' +
+        '<div class="small dim">NEXT BATTLE <button class="btn mini ghost" data-action="mark" data-id="' + nextC.id + '">' + (CF.marks.has(nextC.id) ? '★ MARKED' : '☆ MARK') + '</button></div>' +
         '<div class="nc-name">' + esc(nextC.name) + '</div>' +
         '<div class="countdown" data-countdown="' + nextC.startTimeSeconds + '">--:--:--</div>' +
         '<div class="small dim">' + CF.fmtDate(nextC.startTimeSeconds) + ' · ' + Math.round(nextC.durationSeconds / 3600 * 10) / 10 + 'H</div>' +
       '</div>' +
       '<ul class="clist">' + up.slice(1).map(c =>
-        '<li><span class="cl-name">' + (/Div\. ?[23]/.test(c.name) ? '<b class="bell">♪</b> ' : '') + esc(c.name) + '</span>' +
+        '<li data-action="mark" data-id="' + c.id + '"><span class="cl-name">' + (CF.marks.has(c.id) ? '<b class="bell">★</b> ' : /Div\. ?[23]/.test(c.name) ? '<b class="bell">♪</b> ' : '') + esc(c.name) + '</span>' +
         '<span class="cl-time" data-countdown-short="' + c.startTimeSeconds + '"></span></li>').join('') + '</ul>'
       : '<div class="dim center pad">NO UPCOMING CONTESTS</div>';
 

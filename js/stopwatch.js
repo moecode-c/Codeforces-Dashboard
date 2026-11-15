@@ -49,6 +49,38 @@
   }
   function clearLog() { S.log = []; save(); update(true); }
 
+  /* Set what you're solving (used by the warm-up card). */
+  sw.setProblem = function (name, andStart) {
+    if (S.running || elapsed()) finish('STOP');
+    S.problem = name; save();
+    const i = el && el.querySelector('#sw-problem'); if (i) i.value = name;
+    if (andStart) start(); else update(true);
+  };
+
+  /* ---------- Focus screen: just the clock and the problem, huge ---------- */
+  let focusEl = null;
+  function openFocus() {
+    if (!focusEl) {
+      focusEl = document.createElement('div');
+      focusEl.id = 'focus';
+      document.body.appendChild(focusEl);
+    }
+    focusEl.innerHTML =
+      '<div class="fo-problem">' + (S.problem ? esc(S.problem) : 'FOCUS') + '</div>' +
+      '<div class="fo-time" id="fo-time"></div>' +
+      '<div class="fo-limit"></div>' +
+      '<div class="fo-btns">' +
+        '<button class="btn ghost fo-go" data-action="sw-toggle"></button>' +
+        '<button class="btn ghost" data-action="sw-lap">⚑ LAP</button>' +
+        '<button class="btn ghost" data-action="sw-focus-exit">✕ EXIT</button>' +
+      '</div>' +
+      '<div class="small dim fo-hint">SPACE = START/PAUSE · L = LAP · ESC = EXIT</div>';
+    focusEl.classList.add('open');
+    update(true);
+  }
+  function closeFocus() { if (focusEl) focusEl.classList.remove('open'); }
+  sw.focusOpen = () => !!(focusEl && focusEl.classList.contains('open'));
+
   /* Called by app.js when a new AC comes in. */
   sw.onAccepted = function (sub) {
     if (!S.running || !S.autoStop) return;
@@ -66,11 +98,15 @@
     else if (a === 'sw-auto') { S.autoStop = !S.autoStop; save(); update(true); }
     else if (a === 'sw-pick') { S.problem = t.dataset.p; save(); const i = el && el.querySelector('#sw-problem'); if (i) i.value = S.problem; }
     else if (a === 'sw-clear') { if (confirm('Clear the whole solve log?')) clearLog(); }
+    else if (a === 'sw-focus') openFocus();
+    else if (a === 'sw-focus-exit') closeFocus();
     else return false;
     return true;
   };
   sw.keydown = function (e) {
     if (e.target.tagName === 'INPUT') return false;
+    if (e.key === 'Escape' && sw.focusOpen()) { closeFocus(); return true; }
+    if (e.key === 'f' || e.key === 'F') { sw.focusOpen() ? closeFocus() : openFocus(); return true; }
     if (e.code === 'Space') { e.preventDefault(); toggle(); return true; }
     if (e.key === 'l' || e.key === 'L') { lap(); return true; }
     if (e.key === 'r' || e.key === 'R') { finish('STOP'); return true; }
@@ -93,6 +129,7 @@
               '<button class="btn sw-go" data-action="sw-toggle"></button>' +
               '<button class="btn ghost" data-action="sw-lap">⚑ LAP</button>' +
               '<button class="btn ghost" data-action="sw-reset">■ STOP &amp; SAVE</button>' +
+              '<button class="btn ghost" data-action="sw-focus">◉ FOCUS</button>' +
             '</div>' +
             '<div class="sw-opts"></div>' +
           '</div>', 'sw-a') +
@@ -109,9 +146,17 @@
 
   /* full = also redraw the lists and options (not needed every frame). */
   function update(full) {
-    if (!el || !el.isConnected) return;
     const t = elapsed();
     const over = S.limit && t >= S.limit * 60000;
+    if (sw.focusOpen()) {
+      const ft = focusEl.querySelector('#fo-time');
+      ft.innerHTML = fmt(t);
+      ft.className = 'fo-time' + (S.running ? ' running' : t ? ' paused' : '') + (over ? ' over' : '');
+      focusEl.querySelector('.fo-go').innerHTML = S.running ? '❚❚ PAUSE' : t ? '▶ RESUME' : '▶ START';
+      focusEl.querySelector('.fo-limit').innerHTML = S.limit ? CF.boards.bar(t / (S.limit * 60000), over ? 'var(--wa)' : 'var(--rank)', 40) : '';
+      if (full) focusEl.querySelector('.fo-problem').textContent = S.problem || 'FOCUS';
+    }
+    if (!el || !el.isConnected) return;
     const timeEl = el.querySelector('#sw-time');
     timeEl.innerHTML = fmt(t);
     timeEl.classList.toggle('running', S.running);
