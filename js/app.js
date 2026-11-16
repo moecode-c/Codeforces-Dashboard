@@ -6,7 +6,7 @@
     { id: 'live', title: 'LIVE CONTEST', icon: '⚔' },
     { id: 'calendar', title: 'CONTEST CALENDAR', icon: '▦' },
     { id: 'practice', title: 'PRACTICE', icon: '⚒' },
-    { id: 'rivals', title: 'RIVALS', icon: '☠' },
+    { id: 'teammates', title: 'TEAMMATES', icon: '☺' },
     { id: 'goals', title: 'GOALS & QUESTS', icon: '◎' },
     { id: 'boss', title: 'WEEKLY BOSS', icon: '☠' },
     { id: 'stopwatch', title: 'STOPWATCH', icon: '⏱' },
@@ -14,13 +14,13 @@
 
   const st = {
     handle: null, settings: null, profile: null, info: null, subs: null, history: null,
-    stats: null, contestsAll: [], upcoming: [], rivals: [], quests: [], error: null,
+    stats: null, contestsAll: [], upcoming: [], quests: [], error: null,
     ready: false, lastUpdate: 0, board: 0,
   };
   CF.state = st;
   const known = new Map();   // submission id -> verdict (to detect new verdicts)
   let combo = 0;
-  const due = { full: 0, quick: 0, live: 0, rivals: 0, detect: 0 };
+  const due = { full: 0, quick: 0, live: 0, team: 0, detect: 0 };
   const $ = s => document.querySelector(s);
 
   CF.app = {};
@@ -37,7 +37,8 @@
     st.handle = st.settings.handle || CF.DEFAULT_HANDLE;
     st.profile = CF.loadProfile(st.handle);
     // Remembered by name, so adding or removing boards doesn't move you to a different one.
-    const saved = CF.store.get('board', 0);
+    let saved = CF.store.get('board', 0);
+    if (saved === 'rivals') saved = 'teammates';
     st.board = typeof saved === 'string' ? Math.max(0, BOARDS.findIndex(b => b.id === saved)) : Math.min(BOARDS.length - 1, saved);
     CF.sound.enabled = st.settings.sound;
     document.body.classList.toggle('crt', st.settings.crt);
@@ -54,6 +55,7 @@
     });
     $('#start-handle').textContent = st.handle;
     loadFromCache();
+    CF.team.loadCache(st);
     goTo(st.board, true);
 
     $('#start-screen').addEventListener('click', start, { once: true });
@@ -129,6 +131,7 @@
     CF.sound.click();
     if (a.startsWith('sw-') && CF.stopwatch.handleAction(a, t)) return;
     if (CF.extras.handleAction(a, t)) return;
+    if (CF.team.handleAction(a, t, st)) return;
     if (a === 'goto') goTo(Number(t.dataset.i));
     else if (a === 'prev') goTo(st.board - 1);
     else if (a === 'next') goTo(st.board + 1);
@@ -177,6 +180,7 @@
     document.querySelectorAll('.board').forEach((b, k) => b.classList.toggle('active', k === i));
     CF.live.boardActive = BOARDS[i].id === 'live';
     if (CF.live.boardActive) { due.live = 0; renderBoard('live'); }
+    if (BOARDS[i].id === 'teammates' && st.ready) CF.team.tick(st);
   }
 
   /* ---------------- Data ---------------- */
@@ -279,31 +283,6 @@
     renderBoard('live');
   }
 
-  async function loadRivals() {
-    const list = st.settings.rivals;
-    if (!list.length) { st.rivals = []; renderBoard('rivals'); return; }
-    try {
-      const infos = await CF.api.call('user.info', { handles: list.join(';') });
-      const out = [];
-      for (const u of infos) {
-        const r = { handle: u.handle, rating: u.rating, maxRating: u.maxRating, avatar: u.avatar, week: null, last: null };
-        try {
-          const hist = await CF.api.call('user.rating', { handle: u.handle });
-          r.last = hist[hist.length - 1] || null;
-          const subs = await CF.api.call('user.status', { handle: u.handle, from: 1, count: 200 });
-          const since = Date.now() / 1000 - 7 * 86400, seen = new Set();
-          for (const s of subs) if (s.verdict === 'OK' && s.creationTimeSeconds >= since) seen.add(CF.problemKey(s.problem));
-          r.week = seen.size;
-        } catch (e) { /* partial data is fine */ }
-        out.push(r);
-      }
-      st.rivals = out;
-    } catch (e) {
-      CF.fx.toast('<div><b>RIVALS</b><br>' + CF.esc(e.message) + '</div>', '#ff4d4d');
-    }
-    renderBoard('rivals');
-  }
-
   async function scheduler() {
     if (CF.scheduling) return;
     CF.scheduling = true;
@@ -325,7 +304,8 @@
         await CF.live.refresh(st);
         renderBoard('live');
       }
-      if (t >= due.rivals && st.ready) { due.rivals = t + 10 * 60000; await loadRivals(); }
+      // Runs in the background: a first full team download takes a while and must not hold up your own verdicts.
+      if (t >= due.team && st.ready) { due.team = t + 60000; CF.team.tick(st); }
     } finally { CF.scheduling = false; }
   }
 
@@ -351,6 +331,7 @@
   CF.app.noticeSubs = noticeSubs;
   CF.app.renderBoard = renderBoard;
   CF.app.goToBoard = id => goTo(BOARDS.findIndex(b => b.id === id));
+  CF.app.currentBoard = () => BOARDS[st.board].id;
   function noticeSubs(subs, ctx) {
     const fresh = [];
     for (const s of subs) {
@@ -499,6 +480,7 @@
       el.textContent = left > 0 ? CF.fmtClock(left) : '00:00:00';
       el.classList.toggle('urgent', left > 0 && left < 3600);
     });
+    document.querySelectorAll('[data-ago]').forEach(el => { el.textContent = CF.timeAgo(Number(el.dataset.ago)).toUpperCase(); });
     document.querySelectorAll('[data-countdown-short]').forEach(el => {
       const left = Number(el.dataset.countdownShort) - t;
       const d = Math.floor(left / 86400), h = Math.floor((left % 86400) / 3600), m = Math.floor((left % 3600) / 60);
@@ -619,7 +601,7 @@
       '<div class="chips">' + s.savedHandles.map(h =>
         '<span class="chip ' + (h.toLowerCase() === st.handle.toLowerCase() ? 'on' : '') + '" data-action="switch-handle" data-handle="' + CF.esc(h) + '">' + CF.esc(h) +
         (h.toLowerCase() === st.handle.toLowerCase() ? '' : ' <b data-action="remove-handle" data-handle="' + CF.esc(h) + '">✕</b>') + '</span>').join('') + '</div>' +
-      '<label>RIVALS <span class="dim">(comma separated handles)</span><input id="f-rivals" value="' + CF.esc(s.rivals.join(', ')) + '" autocomplete="off" autocapitalize="off" spellcheck="false"></label>' +
+      '<label>TEAMMATES <span class="dim">(comma separated handles, max 12)</span><input id="f-team" value="' + CF.esc(s.teammates.join(', ')) + '" autocomplete="off" autocapitalize="off" spellcheck="false"></label>' +
       '<div class="row3">' +
         '<label>TARGET RATING<input id="f-target" type="number" step="50" placeholder="auto" value="' + (g.target || '') + '"></label>' +
         '<label>DAILY GOAL<input id="f-daily" type="number" min="1" value="' + g.daily + '"></label>' +
@@ -698,7 +680,9 @@
   async function saveSettingsForm() {
     const s = st.settings, g = st.profile.goal;
     const handle = $('#f-handle').value.trim();
-    s.rivals = $('#f-rivals').value.split(/[,;\s]+/).map(x => x.trim()).filter(Boolean).slice(0, 8);
+    const seenH = new Set();
+    s.teammates = $('#f-team').value.split(/[,;\s]+/).map(x => x.trim()).filter(x => x && !seenH.has(x.toLowerCase()) && seenH.add(x.toLowerCase())).slice(0, 12);
+    CF.team.sync(st);
     const target = parseInt($('#f-target').value, 10);
     if (target && target !== g.target) { g.target = target; g.start = st.stats ? st.stats.rating || 0 : 0; }
     if (!target) { g.target = null; g.start = null; }
@@ -716,7 +700,7 @@
       const ok = await switchHandle(handle);
       if (!ok) return;
     } else {
-      due.rivals = 0;
+      due.team = 0;
       if (st.stats) renderAll();
     }
     closeSettings();
@@ -734,7 +718,7 @@
     if (!s.savedHandles.some(h => h.toLowerCase() === handle.toLowerCase())) s.savedHandles.push(handle);
     CF.saveSettings(s);
     // Reset everything for the new player.
-    Object.assign(st, { handle, profile: CF.loadProfile(handle), info: null, subs: null, history: null, stats: null, rivals: [], ready: false, lastUpdate: 0 });
+    Object.assign(st, { handle, profile: CF.loadProfile(handle), info: null, subs: null, history: null, stats: null, ready: false, lastUpdate: 0 });
     Object.assign(CF.live, { contest: null, mode: 'none', problems: [], myRow: null, mySubs: [], ratingChange: null, standings: null, lastLoad: 0, lastProbe: 0, verdictsLoadedFor: null });
     known.clear(); combo = 0;
     if (history.replaceState) history.replaceState(null, '', location.pathname + '?handle=' + encodeURIComponent(handle));
@@ -742,7 +726,7 @@
     loadFromCache();
     renderHud();
     closeSettings();
-    due.full = due.rivals = due.live = 0;
+    due.full = due.team = due.live = 0;
     scheduler();
     return true;
   }

@@ -238,7 +238,7 @@
   };
 
   function friendRows(rows, st) {
-    const set = new Set([st.handle].concat(st.settings.rivals).map(h => h.toLowerCase()));
+    const set = new Set([st.handle].concat(st.settings.teammates).map(h => h.toLowerCase()));
     return rows.filter(row => row.party.members.some(m => set.has(m.handle.toLowerCase())));
   }
   /* ---------- Rating predictor ----------
@@ -379,7 +379,7 @@
       if (!g) return null;
       if (L.view === 'top') return g.list.slice(0, 10);
       if (L.view === 'friends') {
-        const set = new Set(st.settings.rivals.map(h => h.toLowerCase()));
+        const set = new Set(st.settings.teammates.map(h => h.toLowerCase()));
         return g.list.filter(r => r.me || r.party.members.some(m => set.has(m.handle.toLowerCase())));
       }
       const i = g.list.indexOf(g.me);
@@ -487,11 +487,11 @@
   }
 
   function standingsTab(st) {
-    const views = [['around', 'AROUND ME'], ['top', 'TOP 10'], ['friends', 'FRIENDS']];
+    const views = [['around', 'AROUND ME'], ['top', 'TOP 10'], ['friends', 'TEAM']];
     const sw = '<div class="seg">' + views.map(([v, l]) =>
       '<button class="' + (L.view === v ? 'on' : '') + '" data-action="live-view" data-view="' + v + '">' + l + '</button>').join('') + '</div>';
-    if (L.view === 'friends' && !st.settings.rivals.length)
-      return sw + '<div class="center pad dim">ADD RIVALS IN ⚙ SETTINGS TO SEE FRIENDS HERE</div>';
+    if (L.view === 'friends' && !st.settings.teammates.length)
+      return sw + '<div class="center pad dim">ADD TEAMMATES IN ⚙ SETTINGS TO SEE THEM HERE</div>';
     const list = viewRows(st);
     if (!list) return sw + (L.standingsError ? '<div class="center pad danger">' + esc(L.standingsError) + '</div>'
       : '<div class="center pad dim blink">DOWNLOADING STANDINGS...</div>');

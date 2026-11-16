@@ -14,10 +14,10 @@ Boards change **only when you change them**.
 | # | Board | What's on it |
 |---|-------|--------------|
 | 1 | **Overview** | Avatar, handle in rank colour, rating and max, progress to next rank, **level + XP**, solved / 7-day / streak 🔥 / contests, rating graph with rank bands, solved-by-difficulty, activity heatmap, **upcoming contests with a countdown**, days since last AC, last contest result |
-| 2 | **Live contest** | Auto-detects a contest you're in. Problem tiles (A, B, C…) turn green on AC, red on a miss, yellow while testing. Your submission feed. **Standings tab** with *Around me / Top 10 / Friends*. After the contest: system testing, then your rating change. When you're not in a contest it shows your last battle. **Virtual contests:** tap *+ VIRTUAL*, enter the contest ID (or link) you registered for on Codeforces, and the board runs it like a live contest: countdown, verdicts, your score by the contest's rules and a **ghost rank** against the official contestants at the same moment. It also starts by itself after your first virtual submission. **Rating predictor:** during a live contest (and "if rated" during a virtual) it estimates your rating change and performance from your current rank (≈, usually within ~10 points). |
+| 2 | **Live contest** | Auto-detects a contest you're in. Problem tiles (A, B, C…) turn green on AC, red on a miss, yellow while testing. Your submission feed. **Standings tab** with *Around me / Top 10 / Team*. After the contest: system testing, then your rating change. When you're not in a contest it shows your last battle. **Virtual contests:** tap *+ VIRTUAL*, enter the contest ID (or link) you registered for on Codeforces, and the board runs it like a live contest: countdown, verdicts, your score by the contest's rules and a **ghost rank** against the official contestants at the same moment. It also starts by itself after your first virtual submission. **Rating predictor:** during a live contest (and "if rated" during a virtual) it estimates your rating change and performance from your current rank (≈, usually within ~10 points). |
 | 3 | **Calendar** | Month view of upcoming contests, coloured by division (Div. 2/3 stand out), plus your past contests with rating change. Tap a contest (or ☆) to **mark** it: marked contests get a **warm-up** card 30 minutes before the start with two easy unsolved problems (⏱ TIME IT starts the stopwatch). |
 | 4 | **Practice** | Unfinished business (tried but never accepted), tag radar, recent submissions, strongest and weakest tags, verdict stats |
-| 5 | **Rivals** | Leaderboard against your friends: rating, last change, solves this week |
+| 5 | **Teammates** | **Squad view:** every teammate with an online light (● online now / seen 5m ago), what they're doing (IN CONTEST / VIRTUAL / PRACTISING), their last submission, rating and last change, solved today / 7 days / 30 days / total and streak; sortable. Plus a merged **team activity feed** and team totals. A toast pops when a teammate solves something new. **Tap a teammate** for everything Codeforces has on them: *Overview* (tiles, rating graph, heatmap and a dossier: name, country, organisation, rank and max rank, last online, last submission and AC, registration date, contribution, friend-of count, hardest solve, best rank, biggest gain/drop, blog posts…), *Solving* (difficulty, tag radar, all topics, languages, verdicts, unsolved attempts), *Submissions* (full history with verdict, language, time, memory and type; filterable), *Contests* (every rated contest with rank and rating change) and *VS You* (head-to-head, contests you both did with W/L, problems they solved that you didn't and the other way round). |
 | 6 | **Goals & quests** | Target-rating, daily and weekly rings, **3 daily quests** that earn coins, last 14 days chart |
 | 7 | **Weekly boss** | Each Monday a hard unsolved problem becomes the boss. Its HP follows your usual weekly pace; every new solve hits it for its rating, and solving the boss itself is an instant K.O. Pick the difficulty (EASY +0 / NORMAL +300 / HARD +500 / INSANE +800 above your rating, worth **75 / 150 / 250 / 400 coins**), spawn a new boss any time (only later solves count against it), and replay the K.O. after a win. |
 | 8 | **Stopwatch** | Time yourself on a problem: start/pause, laps, optional time limit (15–90 min), quick-pick from unfinished problems, auto-stops when you get AC and keeps a solve log with average and fastest times. Keys: Space = start/pause, L = lap, R = stop & save. **◉ FOCUS** (or F) shows only the problem and the clock, huge. |
@@ -45,7 +45,7 @@ Nothing is streamed, so it uses **0 KB of data**.
 ## Settings (⚙ in the top-right)
 - **Handle:** type any handle. Saved handles show as chips you can tap to switch.
 - **Link straight to a handle:** `https://<you>.github.io/<repo>/?handle=tourist`
-- **Rivals:** comma-separated handles (max 8)
+- **Teammates:** comma-separated handles (max 12)
 - **Goals:** target rating, daily goal, weekly goal
 - **Night mode** hours, sound, CRT scanlines, refresh interval (3/5/10 min)
 
@@ -59,7 +59,9 @@ Codeforces allows about 1 API call every 2 seconds, so every call goes through o
 | System testing after a contest | every 10 s |
 | Full contest standings (rank, points) | only while the Live board is open: every 2 min live, once otherwise |
 | Full profile (info, all submissions, rating history, contest list) | every 5 min (setting) |
-| Rivals | every 10 min |
+| Teammates: profiles + last online (one call for the whole team) | every 1 min while the Teammates board is open, otherwise every 2 min |
+| Teammates: submissions | after a teammate has been online since the last check, and at least every 30 min (only the newest 50; the full history is downloaded once and kept in IndexedDB) |
+| Teammates: rating history / blog posts | every 30 min / every 6 h |
 
 The verdict checker runs in its own loop, and requests are only spaced apart at the start (Codeforces' limit is
 about 1 call every 2 s), so a big standings download or the 5-minute refresh never delays a verdict.
@@ -104,7 +106,8 @@ js/stats.js           solves, streaks, XP and levels, records, achievements, dai
 js/sound.js           8-bit sound effects (Web Audio)
 js/fx.js              banners, particles, confetti, toasts, shake
 js/charts.js          canvas charts: rating, difficulty, heatmap, radar, rings
-js/boards.js          Overview, Practice, Achievements, Rivals, Goals, Records boards
+js/boards.js          Overview, Practice, Achievements, Goals, Records boards
+js/team.js            Teammates board and its data loader (cached in IndexedDB)
 js/live.js            Live contest board
 js/stopwatch.js       Stopwatch board (state saved in localStorage)
 js/extras.js          Calendar, Weekly boss, Year in review boards; warm-up and morning cards; problemset cache

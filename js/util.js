@@ -171,7 +171,7 @@ CF.store = {
 CF.defaultSettings = {
   handle: CF.DEFAULT_HANDLE,
   savedHandles: [CF.DEFAULT_HANDLE],
-  rivals: [],
+  teammates: [],
   sound: true,
   crt: true,
   refreshMin: 5,
@@ -183,6 +183,8 @@ CF.loadSettings = function () {
   const s = Object.assign({}, CF.defaultSettings, CF.store.get('settings', {}));
   s.night = Object.assign({}, CF.defaultSettings.night, s.night || {});
   s.radio = Object.assign({}, CF.defaultSettings.radio, s.radio || {});
+  // Rivals became Teammates: keep the handles people already entered.
+  if (Array.isArray(s.rivals)) { if (!s.teammates.length) s.teammates = s.rivals; delete s.rivals; }
   return s;
 };
 CF.saveSettings = s => CF.store.set('settings', s);

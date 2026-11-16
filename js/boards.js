@@ -203,40 +203,6 @@
         '</div>').join('') + '</div></div>';
   };
 
-  /* ============ RIVALS ============ */
-  CF.boards.rivals = function (el, st) {
-    const rivals = st.rivals || [];
-    if (!st.settings.rivals.length) {
-      el.innerHTML = panel('⚔ RIVALS', '<div class="center pad">' +
-        '<div class="big">NO RIVALS YET</div><p class="dim">Add friends’ handles in ⚙ settings to battle them on a leaderboard.</p>' +
-        '<button class="btn" data-action="settings">OPEN SETTINGS</button></div>', 'full');
-      return;
-    }
-    const me = { handle: st.info ? st.info.handle : st.handle, rating: st.stats.rating, maxRating: st.stats.maxRating,
-      week: st.stats.solvedWeek, last: st.stats.lastContest, avatar: st.info && st.info.avatar, me: true };
-    const all = [me].concat(rivals).sort((a, b) => (b.rating || 0) - (a.rating || 0));
-    const medals = ['♕', '♖', '♗'];
-    const weekTop = Math.max(1, ...all.map(r => r.week || 0));
-    el.innerHTML =
-      '<div class="grid g-rivals">' +
-      panel('⚔ LEADERBOARD · RATING', '<ol class="board-list">' + all.map((r, i) => {
-        const rk = CF.rankFor(r.rating);
-        const d = r.last ? r.last.newRating - r.last.oldRating : null;
-        return '<li class="' + (r.me ? 'me' : '') + '">' +
-          '<span class="pos">' + (medals[i] || (i + 1)) + '</span>' +
-          CF.avatarImg(r.avatar, r.handle, rk.color) +
-          '<span class="grow"><b style="color:' + rk.color + '">' + esc(r.handle) + '</b>' + (r.me ? ' <span class="you">YOU</span>' : '') +
-          '<br><span class="small dim">' + esc(rk.name.toUpperCase()) + ' · MAX ' + (r.maxRating || '-') + '</span></span>' +
-          (d != null ? '<span class="small ' + (d >= 0 ? 'good' : 'danger') + '">' + (d >= 0 ? '+' : '') + d + '</span>' : '') +
-          '<span class="big" style="color:' + rk.color + '">' + (r.rating != null ? r.rating : '----') + '</span></li>';
-      }).join('') + '</ol>', 'r-board') +
-      panel('★ SOLVED THIS WEEK', '<div class="weekbars">' + all.slice().sort((a, b) => (b.week || 0) - (a.week || 0)).map(r =>
-        '<div class="wb ' + (r.me ? 'me' : '') + '"><span>' + esc(r.handle) + '</span>' +
-        bar((r.week || 0) / weekTop, r.me ? 'var(--rank)' : '#8a8aa8', 18) + '<b>' + (r.week != null ? r.week : '?') + '</b></div>').join('') +
-      '</div>', 'r-week') +
-      '</div>';
-  };
-
   /* ============ GOALS ============ */
   CF.boards.goals = function (el, st) {
     const s = st.stats, g = st.profile.goal, quests = st.quests || [];
